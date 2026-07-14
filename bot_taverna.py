@@ -3,19 +3,17 @@ import pyautogui as pagui
 import time
 import keyboard
 import os
-import cv2
+
+import Interface_B
 
 class BotTaverna:
- def __init__(self): #Construtor
+ def __init__(self, itens_escolha, velocidade): #Construtor
   # Configurações iniciais
-  pa.Pause = 0.05
+  pa.PAUSE = 0.05
   self.rodando = True
 
-  self.itens_desejados = [
-   'amizad_moeda.png',
-   'mist_loja.png',
-   'book_loja.png'
-  ]
+  self.itens_desejados = itens_escolha
+  self.multi_tempo = velocidade
 
   # Registra o atalho para parar o bot imediatamente
   keyboard.add_hotkey("esc", self.parar_bot)
@@ -29,9 +27,9 @@ class BotTaverna:
   """Ação inicial que roda apenas uma vez para abrir a loja."""
   print("Abrindo a loja...")
   pa.click(x=84, y=474)
-  time.sleep(0.5)
+  time.sleep(0.5 * self.multi_tempo)
   pa.click(x=84, y=474)
-  time.sleep(1)
+  time.sleep(1 * self.multi_tempo)
 
  def scrollar_loja(self):
   """Realiza o movimento de clique, segura e arrasta para scrollar a tela."""
@@ -41,8 +39,8 @@ class BotTaverna:
 
   # Loop de arrasto do mouse
   for eixo_y in range(758, 300, -30):
-   pa.moveTo(1171, eixo_y)
-   time.sleep(0.03)
+    pa.moveTo(1171, eixo_y)
+    time.sleep(0.03 * self.multi_tempo)
 
   time.sleep(0.5)
   pa.mouseUp()
@@ -53,13 +51,11 @@ class BotTaverna:
   """Clica nos botões responsáveis por dar o refresh na loja."""
 
   pa.click(x=393, y=949)
-  time.sleep(0.5)
+  time.sleep(0.5 * self.multi_tempo)
   pa.click(x=1159, y=654)
-  time.sleep(0.5)
+  time.sleep(0.5 * self.multi_tempo)
 
  def identificar_item_e_comprar(self):
-
-  print("[DEBUG] Entrou na função identificar_item...")
 
   diretorio_atual = os.path.dirname(os.path.abspath(__file__))
   comprou_algo = False
@@ -67,7 +63,6 @@ class BotTaverna:
   try:
    for nome_foto in self.itens_desejados:
     caminho_da_imagem = os.path.join(diretorio_atual, 'moedas_img', nome_foto)
-    print(f"[SCAN] Procurando por: {nome_foto}")
 
     if not os.path.exists(caminho_da_imagem):
      print(f"[ALERTA] Arquivo NÃO encontrado: {caminho_da_imagem} - Verifique o nome!")
@@ -79,11 +74,10 @@ class BotTaverna:
      posicao = pagui.locateCenterOnScreen(caminho_da_imagem, confidence=0.92)
 
      if posicao is not None:
-      print(f"[DEBUG] Item encontrado {nome_foto}")
       #Chamou a func comprar aqui
       self.comprar_item(posicao)
       comprou_algo = True
-      time.sleep(0.5)
+      time.sleep(0.5 * self.multi_tempo)
 
      else:
       print(f"O item nao esta na tela {nome_foto} ")
@@ -111,19 +105,18 @@ class BotTaverna:
   try:
 
    pa.moveTo(int(botao_comprar), int(botao_y + ajuste))
-   time.sleep(0.4)
-
-   print("[DEBUG] CLIQUE DE COMPRA")
+   time.sleep(0.4 * self.multi_tempo)
+   
    pagui.click(x=1680, y=posicao.y + ajuste)
-   time.sleep(0.3)
+   time.sleep(0.3 * self.multi_tempo)
    pagui.click(x=1680, y=posicao.y + ajuste)
-   time.sleep(0.3)
+   time.sleep(0.3 * self.multi_tempo)
 
    #2 confirmacao
    pa.moveTo(int(confirmar_x), confirmar_y)
-   time.sleep(0.5)
+   time.sleep(0.5 * self.multi_tempo)
    pagui.click(x=confirmar_x, y=confirmar_y)
-   time.sleep(0.5)
+   time.sleep(0.5 * self.multi_tempo)
 
   except Exception as e:
    print(f"[ERRO COMPRA]: {e}")
@@ -163,7 +156,7 @@ class BotTaverna:
 
     # Dá o refresh na taverna para gerar novos itens
     self.resetar_loja()
-    time.sleep(1)  # Tempo para a loja carregar após o reset
+    time.sleep(1 * self.multi_tempo)  # Tempo para a loja carregar após o reset
 
    except Exception as e:
     print(f"[ALERTA CRÍTICO] O loop principal sofreu um erro, mas tentará continuar: {e}")
@@ -171,8 +164,11 @@ class BotTaverna:
     # Removemos o "self.rodando = False" e o "break" daqui para o bot NUNCA fechar sozinho se algo falhar
     continue
 
+
 # ==== PONTO DE ENTRADA DO SCRIPT ====
 if __name__ == "__main__":
- # Instancia a classe do bot e chama a função de iniciar
- bot = BotTaverna()
- bot.iniciar()
+ # CORREÇÃO: Puxamos a classe 'InterfaceBot' de dentro do módulo importado 'Interface_B'
+ app = Interface_B.InterfaceBot()
+
+ # Iniciamos a interface gráfica (ela se encarregará de disparar o bot depois)
+ app.mainloop()
