@@ -1,9 +1,10 @@
 import os
-
 import customtkinter as ctk
 import threading
 import importlib
 from PIL import Image
+
+ctk.set_appearance_mode('dark')
 
 class InterfaceBot(ctk.CTk):
     def __init__(self):
@@ -17,6 +18,15 @@ class InterfaceBot(ctk.CTk):
         diretorio_atual = os.path.dirname(os.path.abspath(__file__))
         self.pasta_imagens = os.path.join(diretorio_atual, 'moedas_img')
 
+        self.contadores = {
+            'amizad_moeda.png': 0,
+            'mist_loja.png': 0,
+            'book_loja.png': 0
+        }
+
+        # Dicionário para guardar as referências dos textos na tela que mostram os números
+        self.labels_contadores = {}
+
         #Titulo
         self.titulo = ctk.CTkLabel(self, text='Garo RefreshShop', font=ctk.CTkFont(size=20, weight='bold'))
         self.titulo.pack(pady=20)
@@ -27,7 +37,7 @@ class InterfaceBot(ctk.CTk):
 
         # Container (Frame) para organizar os itens verticalmente com suas imagens
         self.frame_itens = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_itens.pack(pady=10, padx=50, fill="x")
+        self.frame_itens.pack(pady=10, padx=20, fill="x") #margem ficou menor
 
         # 1. ITEM: Moeda da Amizade
         self.check_moeda = ctk.CTkCheckBox(self.frame_itens, text="")  # Sem texto no checkbox
@@ -61,26 +71,52 @@ class InterfaceBot(ctk.CTk):
         self.btn_iniciar.pack(pady=40, fill="x", padx=60)
 
     def exibir_imagem_e_texto(self, row, img_nome, texto):
-        """Função auxiliar para carregar a imagem e alinhar na tela."""
+        """Função auxiliar para carregar a imagem e alinhar na tela com espaço garantido."""
         caminho_img = os.path.join(self.pasta_imagens, img_nome)
+
+        # Distribuímos a largura das colunas de forma estrita para evitar cortes:
+        self.frame_itens.grid_columnconfigure(0, minsize=40)  # Checkbox
+        self.frame_itens.grid_columnconfigure(1, minsize=45)  # Imagem
+        self.frame_itens.grid_columnconfigure(2, minsize=160) # Nome do item
+        self.frame_itens.grid_columnconfigure(3, minsize=120) # Contador (garante espaço para todo o texto)
 
         # Se a imagem existir, carrega e exibe
         if os.path.exists(caminho_img):
-            # Abre a imagem usando a biblioteca PIL e define o tamanho visual (32x32 pixels)
             pil_img = Image.open(caminho_img)
             ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(32, 32))
 
-            # Label para conter apenas a imagem
+            # Label da Imagem (Coluna 1)
             lbl_img = ctk.CTkLabel(self.frame_itens, image=ctk_img, text="")
             lbl_img.grid(row=row, column=1, padx=5, sticky="w")
         else:
-            # Caso o print não exista na pasta, avisa na tela para não quebrar a interface
             lbl_img = ctk.CTkLabel(self.frame_itens, text="[Sem foto]", text_color="red")
             lbl_img.grid(row=row, column=1, padx=5, sticky="w")
 
-        # Label para conter o texto descritivo do item
+        # Label do Texto do Item (Coluna 2)
         lbl_texto = ctk.CTkLabel(self.frame_itens, text=texto, font=ctk.CTkFont(size=14))
-        lbl_texto.grid(row=row, column=2, padx=10, sticky="w")
+        lbl_texto.grid(row=row, column=2, padx=5, sticky="w")
+
+        # Label do Contador de compras (Coluna 3)
+        # Garantimos um visual elegante e com margem suficiente para nunca cortar as letras
+        lbl_contador = ctk.CTkLabel(
+            self.frame_itens,
+            text="Comprados: 0",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="cyan"
+        )
+        lbl_contador.grid(row=row, column=3, padx=5, sticky="w")
+
+        # Guardamos a referência desse texto para podermos alterá-lo depois
+        self.labels_contadores[img_nome] = lbl_contador
+
+    def atualizar_contador_interface(self, img_nome):
+        """Função que atualiza a contagem de forma segura na thread principal."""
+        if img_nome in self.contadores:
+            self.contadores[img_nome] += 1
+            novo_total = self.contadores[img_nome]
+
+            # O .after(0, ...) força a interface a atualizar o texto imediatamente sem travar
+            self.after(0, lambda: self.labels_contadores[img_nome].configure(text=f"Comprados: {novo_total}"))
 
     def coletar_e_iniciar(self):
         # 1. Monta a lista baseado no que o usuário marcou
@@ -104,7 +140,8 @@ class InterfaceBot(ctk.CTk):
         # 3. Importa o Bot dinamicamente e inicia em segundo plano (Thread)
         # Importa aqui dentro para evitar problemas de importação circular importando na propria string
         bot_modulo = importlib.import_module("bot_taverna")
-        instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador)
+        # PASSAMOS 'self' (a própria interface) para o bot poder usá-la para atualizar os dados
+        instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador, self)
 
         thread = threading.Thread(target=instancia_bot.iniciar, daemon=True)
         thread.start()

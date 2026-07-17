@@ -4,16 +4,17 @@ import time
 import keyboard
 import os
 
-import Interface_B
-
 class BotTaverna:
- def __init__(self, itens_escolha, velocidade): #Construtor
+ def __init__(self, itens_escolha, velocidade, interface_app: 'InterfaceBot'): #Construtor
   # Configurações iniciais
   pa.PAUSE = 0.05
   self.rodando = True
 
   self.itens_desejados = itens_escolha
   self.multi_tempo = velocidade
+
+  #Gardando a referencia da janela para mandar sinais
+  self.interface_app = interface_app
 
   # Registra o atalho para parar o bot imediatamente
   keyboard.add_hotkey("esc", self.parar_bot)
@@ -56,7 +57,6 @@ class BotTaverna:
   time.sleep(0.5 * self.multi_tempo)
 
  def identificar_item_e_comprar(self):
-
   diretorio_atual = os.path.dirname(os.path.abspath(__file__))
   comprou_algo = False
 
@@ -70,29 +70,30 @@ class BotTaverna:
 
     print(f"[SCAN] Procurando por: {nome_foto}...")
 
+    # Tentativa de escaneamento com PyAutoGUI
+    posicao = None
     try:
      posicao = pagui.locateCenterOnScreen(caminho_da_imagem, confidence=0.92)
+    except Exception as e_interno:
+     # Se o PyAutoGUI der erro por não achar a imagem, tratamos aqui de forma silenciosa
+     posicao = None
 
-     if posicao is not None:
-      #Chamou a func comprar aqui
-      self.comprar_item(posicao)
-      comprou_algo = True
-      time.sleep(0.5 * self.multi_tempo)
-
-     else:
-      print(f"O item nao esta na tela {nome_foto} ")
-
-    except Exception as e:
-     print(f"[ERRO SCAN INTERNO]: {e}")
+    # Se encontramos o item, prossegue com a compra
+    if posicao is not None:
+     print(f"[DEBUG] Item encontrado {nome_foto}")
+     self.comprar_item(posicao, nome_foto)
+     comprou_algo = True
+     time.sleep(0.5 * self.multi_tempo)
+    else:
+     print(f"O item nao esta na tela: {nome_foto}")
 
   except Exception as e:
    print(f"[ERRO SCAN GLOBAL]: {e}")
 
   return comprou_algo
 
- def comprar_item(self, posicao):
-
-  #clique comprar no garo
+ def comprar_item(self, posicao, nome_foto):
+  # clique comprar no garo
   ajuste = 40
   botao_comprar = 1673
   botao_y = int(posicao.y)
@@ -100,26 +101,37 @@ class BotTaverna:
   confirmar_x = 1149
   confirmar_y = 725
 
-  print(f"Item detectado")
+  print(f"\n[SISTEMA DE COMPRA] Iniciando rotina para: {nome_foto}")
 
   try:
-
+   # Movimentos e cliques físicos
    pa.moveTo(int(botao_comprar), int(botao_y + ajuste))
    time.sleep(0.4 * self.multi_tempo)
-   
+
+   print("[SISTEMA DE COMPRA] Efetuando primeiro clique de compra...")
    pagui.click(x=1680, y=posicao.y + ajuste)
    time.sleep(0.3 * self.multi_tempo)
    pagui.click(x=1680, y=posicao.y + ajuste)
    time.sleep(0.3 * self.multi_tempo)
 
-   #2 confirmacao
+   # 2 confirmação
+   print("[SISTEMA DE COMPRA] Movendo para botão confirmar...")
    pa.moveTo(int(confirmar_x), confirmar_y)
    time.sleep(0.5 * self.multi_tempo)
    pagui.click(x=confirmar_x, y=confirmar_y)
    time.sleep(0.5 * self.multi_tempo)
 
+   # Comunicação com a interface
+   print(f"[SISTEMA DE COMPRA] Tentando enviar sinal de atualização para a interface para: {nome_foto}")
+
+   if self.interface_app is not None:
+    self.interface_app.atualizar_contador_interface(nome_foto)
+    print("[SISTEMA DE COMPRA] Sinal enviado com sucesso!")
+   else:
+    print("[ERRO CRÍTICO] A referência 'self.interface_app' está vazia (None)!")
+
   except Exception as e:
-   print(f"[ERRO COMPRA]: {e}")
+   print(f"[ERRO CRÍTICO NO PROCESSO DE COMPRA]: {e}")
 
  def iniciar(self):
   """Fluxo principal com travas de segurança para evitar paradas."""
@@ -167,8 +179,8 @@ class BotTaverna:
 
 # ==== PONTO DE ENTRADA DO SCRIPT ====
 if __name__ == "__main__":
+ import Interface_B
  # CORREÇÃO: Puxamos a classe 'InterfaceBot' de dentro do módulo importado 'Interface_B'
  app = Interface_B.InterfaceBot()
-
  # Iniciamos a interface gráfica (ela se encarregará de disparar o bot depois)
  app.mainloop()
