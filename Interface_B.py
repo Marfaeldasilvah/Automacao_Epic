@@ -6,15 +6,16 @@ from PIL import Image
 
 ctk.set_appearance_mode('dark')
 
+
 class InterfaceBot(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title('Garo RefreshShop')
-        self.geometry('500x550')
-        self.resizable(False,False)
+        self.geometry('500x620')
+        self.resizable(False, False)
 
-        #caminho pasta img
+        # caminho pasta img
         diretorio_atual = os.path.dirname(os.path.abspath(__file__))
         self.pasta_imagens = os.path.join(diretorio_atual, 'moedas_img')
 
@@ -27,9 +28,9 @@ class InterfaceBot(ctk.CTk):
         # Dicionário para guardar as referências dos textos na tela que mostram os números
         self.labels_contadores = {}
 
-        #Titulo
+        # Titulo
         self.titulo = ctk.CTkLabel(self, text='Garo RefreshShop', font=ctk.CTkFont(size=20, weight='bold'))
-        self.titulo.pack(pady=20)
+        self.titulo.pack(pady=10)
 
         # --- SEÇÃO: ESCOLHA DE ITENS ---
         self.label_itens = ctk.CTkLabel(self, text="Escolha os itens para comprar:", font=ctk.CTkFont(weight="bold"))
@@ -37,7 +38,7 @@ class InterfaceBot(ctk.CTk):
 
         # Container (Frame) para organizar os itens verticalmente com suas imagens
         self.frame_itens = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_itens.pack(pady=10, padx=20, fill="x") #margem ficou menor
+        self.frame_itens.pack(pady=10, padx=20, fill="x")  # margem ficou menor
 
         # 1. ITEM: Moeda da Amizade
         self.check_moeda = ctk.CTkCheckBox(self.frame_itens, text="")  # Sem texto no checkbox
@@ -58,17 +59,51 @@ class InterfaceBot(ctk.CTk):
 
         # --- SELEÇÃO DE VELOCIDADE ---
         self.label_vel = ctk.CTkLabel(self, text="Velocidade do Bot:", font=ctk.CTkFont(weight="bold"))
-        self.label_vel.pack(pady=15)
+        self.label_vel.pack(pady=5)
 
-        self.menu_velocidade = ctk.CTkComboBox(self, values=["Rápido (0.5x delay)", "Normal (1.0x delay)",
+        self.menu_velocidade = ctk.CTkComboBox(self, values=["Rápido (0.7x delay)", "Normal (1.0x delay)",
                                                              "Lento (1.5x delay)"])
         self.menu_velocidade.set("Normal (1.0x delay)")
         self.menu_velocidade.pack(pady=5)
 
+        # --- SEÇÃO: LIMITE DE GASTOS ---
+
+        # Este frame usa pack para se posicionar na tela principal
+        self.frame_limites = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_limites.pack(pady=10, padx=20, fill="x")
+
+        # Todos os componentes internos agora usam .pack() para evitar o conflito de layout
+        lbl_limite_sky = ctk.CTkLabel(
+            self.frame_limites,
+            text="Limite de Skystones para gastar (3 por Refresh):",
+            font=ctk.CTkFont(weight="bold")
+        )
+        lbl_limite_sky.pack(pady=2, anchor="n")
+
+        self.input_sky = ctk.CTkEntry(
+            self.frame_limites,
+            placeholder_text="Ex: 90",
+            width=200,
+            justify="center"
+        )
+        self.input_sky.pack(pady=4, anchor="n")
+
+        self.lbl_sky_gastas = ctk.CTkLabel(
+            self.frame_limites,
+            text="Skystones gastas: 0",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="orange"
+        )
+        self.lbl_sky_gastas.pack(pady=2, anchor="n")
+
         # --- BOTÃO INICIAR ---
         self.btn_iniciar = ctk.CTkButton(self, text="LIGAR BOT", fg_color="green", hover_color="darkgreen",
                                          command=self.coletar_e_iniciar)
-        self.btn_iniciar.pack(pady=40, fill="x", padx=60)
+        self.btn_iniciar.pack(pady=25, fill="x", padx=60)
+
+    def atualizar_sky_interface(self, total_gasto):
+        """Atualiza o contador de Skystones gastas na tela de forma segura."""
+        self.after(0, lambda: self.lbl_sky_gastas.configure(text=f"Skystones gastas: {total_gasto}"))
 
     def exibir_imagem_e_texto(self, row, img_nome, texto):
         """Função auxiliar para carregar a imagem e alinhar na tela com espaço garantido."""
@@ -77,8 +112,8 @@ class InterfaceBot(ctk.CTk):
         # Distribuímos a largura das colunas de forma estrita para evitar cortes:
         self.frame_itens.grid_columnconfigure(0, minsize=40)  # Checkbox
         self.frame_itens.grid_columnconfigure(1, minsize=45)  # Imagem
-        self.frame_itens.grid_columnconfigure(2, minsize=160) # Nome do item
-        self.frame_itens.grid_columnconfigure(3, minsize=120) # Contador (garante espaço para todo o texto)
+        self.frame_itens.grid_columnconfigure(2, minsize=160)  # Nome do item
+        self.frame_itens.grid_columnconfigure(3, minsize=120)  # Contador (garante espaço para todo o texto)
 
         # Se a imagem existir, carrega e exibe
         if os.path.exists(caminho_img):
@@ -97,7 +132,6 @@ class InterfaceBot(ctk.CTk):
         lbl_texto.grid(row=row, column=2, padx=5, sticky="w")
 
         # Label do Contador de compras (Coluna 3)
-        # Garantimos um visual elegante e com margem suficiente para nunca cortar as letras
         lbl_contador = ctk.CTkLabel(
             self.frame_itens,
             text="Comprados: 0",
@@ -128,20 +162,30 @@ class InterfaceBot(ctk.CTk):
         # 2. Descobre o multiplicador de velocidade
         vel = self.menu_velocidade.get()
         if "Rápido" in vel:
-            multiplicador = 0.5
+            multiplicador = 0.7
         elif "Lento" in vel:
             multiplicador = 1.5
         else:
             multiplicador = 1.0
 
+        # 3. Coleta o limite de Skystones do campo de texto
+        valor_digitado = self.input_sky.get().strip()
+        limite_sky = int(valor_digitado) if valor_digitado.isdigit() else 99999
+
         # Desativa o botão temporariamente
         self.btn_iniciar.configure(state="disabled", text="BOT RODANDO (ESC PARA PARAR)")
 
-        # 3. Importa o Bot dinamicamente e inicia em segundo plano (Thread)
-        # Importa aqui dentro para evitar problemas de importação circular importando na propria string
+        # 4. Importa o Bot dinamicamente e inicia em segundo plano (Thread)
         bot_modulo = importlib.import_module("bot_taverna")
-        # PASSAMOS 'self' (a própria interface) para o bot poder usá-la para atualizar os dados
-        instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador, self)
+
+        # Enviamos a lista, o multiplicador, a referência da janela (self) e o limite de Skystones
+        instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador, self, limite_sky)
 
         thread = threading.Thread(target=instancia_bot.iniciar, daemon=True)
         thread.start()
+
+
+# ==== PONTO DE ENTRADA OFICIAL DO PROGRAMA ====
+if __name__ == "__main__":
+    app = InterfaceBot()
+    app.mainloop()

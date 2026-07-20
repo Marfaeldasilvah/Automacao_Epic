@@ -5,7 +5,7 @@ import keyboard
 import os
 
 class BotTaverna:
- def __init__(self, itens_escolha, velocidade, interface_app: 'InterfaceBot'): #Construtor
+ def __init__(self, itens_escolha, velocidade, interface_app: 'InterfaceBot', limite_sky): # Construtor atualizado
   # Configurações iniciais
   pa.PAUSE = 0.05
   self.rodando = True
@@ -13,8 +13,12 @@ class BotTaverna:
   self.itens_desejados = itens_escolha
   self.multi_tempo = velocidade
 
-  #Gardando a referencia da janela para mandar sinais
+  # Guardando a referencia da janela para mandar sinais
   self.interface_app = interface_app
+
+  # Controle de limite e gasto de Skystones
+  self.limite_sky = limite_sky
+  self.sky_gasto = 0
 
   # Registra o atalho para parar o bot imediatamente
   keyboard.add_hotkey("esc", self.parar_bot)
@@ -23,6 +27,14 @@ class BotTaverna:
   """Interrompe a execução do bot."""
   print("\nBOT INTERROMPIDO (ESC)!")
   os._exit(0)
+
+ def verificar_limites_gastos(self):
+  """Para o bot caso o limite de Skystones estipulado seja atingido."""
+  if self.sky_gasto >= self.limite_sky:
+   print(f"\n[⚠️ PARADA AUTOMÁTICA] Limite de Skystones atingido! Gasto: {self.sky_gasto} / {self.limite_sky}")
+   self.rodando = False
+   return False
+  return True
 
  def abrir_loja(self):
   """Ação inicial que roda apenas uma vez para abrir a loja."""
@@ -46,15 +58,25 @@ class BotTaverna:
   time.sleep(0.5)
   pa.mouseUp()
 
-
  def resetar_loja(self):
-
-  """Clica nos botões responsáveis por dar o refresh na loja."""
-
+  """Clica nos botões responsáveis por dar o refresh na loja e contabiliza o gasto."""
   pa.click(x=393, y=949)
   time.sleep(0.5 * self.multi_tempo)
   pa.click(x=1159, y=654)
   time.sleep(0.5 * self.multi_tempo)
+
+  # Contabiliza o custo do refresh (3 Skystones)
+  self.sky_gasto += 3
+  print(f"[CONTA] Skystones gastas nesta sessão: {self.sky_gasto} / {self.limite_sky}")
+
+  # Envia o valor atualizado para o componente da interface gráfica
+  if self.interface_app is not None:
+   try:
+    self.interface_app.atualizar_sky_interface(self.sky_gasto)
+   except Exception as e:
+    print(f"[FALHA AO ATUALIZAR TEXTO]: {e}")
+
+   time.sleep(0.5 * self.multi_tempo)
 
  def identificar_item_e_comprar(self):
   diretorio_atual = os.path.dirname(os.path.abspath(__file__))
@@ -74,8 +96,7 @@ class BotTaverna:
     posicao = None
     try:
      posicao = pagui.locateCenterOnScreen(caminho_da_imagem, confidence=0.92)
-    except Exception as e_interno:
-     # Se o PyAutoGUI der erro por não achar a imagem, tratamos aqui de forma silenciosa
+    except Exception:
      posicao = None
 
     # Se encontramos o item, prossegue com a compra
@@ -93,7 +114,6 @@ class BotTaverna:
   return comprou_algo
 
  def comprar_item(self, posicao, nome_foto):
-  # clique comprar no garo
   ajuste = 40
   botao_comprar = 1673
   botao_y = int(posicao.y)
@@ -114,7 +134,7 @@ class BotTaverna:
    pagui.click(x=1680, y=posicao.y + ajuste)
    time.sleep(0.3 * self.multi_tempo)
 
-   # 2 confirmação
+   # 2ª confirmação
    print("[SISTEMA DE COMPRA] Movendo para botão confirmar...")
    pa.moveTo(int(confirmar_x), confirmar_y)
    time.sleep(0.5 * self.multi_tempo)
@@ -143,10 +163,16 @@ class BotTaverna:
 
   while self.rodando:
    try:
+    # Verificação de segurança de limite estipulado
+    if not self.verificar_limites_gastos():
+     break
+
     # --- LOOP DE VERIFICAÇÃO LIMPA (TOPO) ---
     tentativas_topo = 0
-    while tentativas_topo < 1:  # Proteção extra: não deixa o bot travar no topo em loop infinito
+    while tentativas_topo < 1:
      print(f"\n--- VARREDURA DA TELA (TOPO) - Tentativa {tentativas_topo + 1} ---")
+
+     time.sleep(0.6) # Delay estratégico para o PyAutoGUI reconhecer o topo estático
 
      achou_algo_no_topo = self.identificar_item_e_comprar()
 
@@ -159,23 +185,20 @@ class BotTaverna:
 
     # --- ROLAR A PÁGINA ---
     self.scrollar_loja()
-    time.sleep(0.3)
+    time.sleep(0.4) # Aguarda a tela parar de se mover após o scroll rápido
 
     print("\n--- VARREDURA DA TELA (FUNDO) ---")
-    # Busca e compra o que ficou no fundo da página
     self.identificar_item_e_comprar()
     time.sleep(0.5)
 
     # Dá o refresh na taverna para gerar novos itens
     self.resetar_loja()
-    time.sleep(1 * self.multi_tempo)  # Tempo para a loja carregar após o reset
+    time.sleep(0.8 * self.multi_tempo)
 
    except Exception as e:
     print(f"[ALERTA CRÍTICO] O loop principal sofreu um erro, mas tentará continuar: {e}")
     time.sleep(2)
-    # Removemos o "self.rodando = False" e o "break" daqui para o bot NUNCA fechar sozinho se algo falhar
     continue
-
 
 # ==== PONTO DE ENTRADA DO SCRIPT ====
 if __name__ == "__main__":
