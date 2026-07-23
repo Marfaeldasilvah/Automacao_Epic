@@ -5,34 +5,27 @@ import keyboard
 import os
 
 class BotTaverna:
- def __init__(self, itens_escolha, velocidade, interface_app: 'InterfaceBot', limite_sky): # Construtor atualizado
-  # Configurações iniciais
+ def __init__(self, itens_escolha, velocidade, interface_app, limite_sky):
   pa.PAUSE = 0.05
   self.rodando = True
 
   self.itens_desejados = itens_escolha
   self.multi_tempo = velocidade
-
-  # Guardando a referencia da janela para mandar sinais
   self.interface_app = interface_app
 
-  # Controle de limite e gasto de Skystones
   self.limite_sky = limite_sky
   self.sky_gasto = 0
 
-  # Registra o atalho para parar o bot imediatamente
-  keyboard.add_hotkey("esc", self.parar_bot)
-
- def parar_bot(self):
-  """Interrompe a execução do bot."""
-  print("\nBOT INTERROMPIDO (ESC)!")
-  os._exit(0)
+  # REGISTRO: Guarda os itens comprados na rodada atual da loja
+  self.comprados_na_rodada = set()
 
  def verificar_limites_gastos(self):
   """Para o bot caso o limite de Skystones estipulado seja atingido."""
   if self.sky_gasto >= self.limite_sky:
    print(f"\n[⚠️ PARADA AUTOMÁTICA] Limite de Skystones atingido! Gasto: {self.sky_gasto} / {self.limite_sky}")
    self.rodando = False
+   if self.interface_app is not None:
+    self.interface_app.after(0, self.interface_app.parar_bot("Meta de skystones atingida."))
    return False
   return True
 
@@ -64,6 +57,9 @@ class BotTaverna:
   time.sleep(0.5 * self.multi_tempo)
   pa.click(x=1159, y=654)
   time.sleep(0.5 * self.multi_tempo)
+
+  # Limpa os itens registrados para a próxima loja
+  self.comprados_na_rodada.clear()
 
   # Contabiliza o custo do refresh (3 Skystones)
   self.sky_gasto += 3
@@ -141,30 +137,37 @@ class BotTaverna:
    pagui.click(x=confirmar_x, y=confirmar_y)
    time.sleep(0.5 * self.multi_tempo)
 
-   # Comunicação com a interface
-   print(f"[SISTEMA DE COMPRA] Tentando enviar sinal de atualização para a interface para: {nome_foto}")
+   # --- TRAVA DE DUPLICIDADE NO CONTADOR ---
+   if nome_foto not in self.comprados_na_rodada:
+    # Marca como já contado nesta loja
+    self.comprados_na_rodada.add(nome_foto)
 
-   if self.interface_app is not None:
-    self.interface_app.atualizar_contador_interface(nome_foto)
-    print("[SISTEMA DE COMPRA] Sinal enviado com sucesso!")
+    if self.interface_app is not None:
+     self.interface_app.atualizar_contador_interface(nome_foto)
+     print(f"[CONTADOR] {nome_foto} contabilizado com sucesso!")
    else:
-    print("[ERRO CRÍTICO] A referência 'self.interface_app' está vazia (None)!")
+    print(f"[CONTADOR IGNORADO] {nome_foto} já foi comprado/contado nesta rodada da loja.")
 
   except Exception as e:
    print(f"[ERRO CRÍTICO NO PROCESSO DE COMPRA]: {e}")
 
  def iniciar(self):
   """Fluxo principal com travas de segurança para evitar paradas."""
-  print("BOT INICIADO! VÁ PARA A TELA DO JOGO NA TAVERNA.")
-  print("Pressione ESC para parar o BOT.")
-  time.sleep(3)
+  print("BOT INICIADO! VÁ PARA A TELA DO JOGO NA TAVERNA.\nPressione ESC para parar o BOT.")
 
+  # Garante o registro do atalho a cada nova inicialização
+  try:
+      keyboard.add_hotkey("esc", self.parar_bot, suppress=False)
+  except Exception:
+      pass
+
+  time.sleep(3)
   self.abrir_loja()
 
   while self.rodando:
    try:
     # Verificação de segurança de limite estipulado
-    if not self.verificar_limites_gastos():
+    if not self.verificar_limites_gastos() or not self.rodando:
      break
 
     # --- LOOP DE VERIFICAÇÃO LIMPA (TOPO) ---

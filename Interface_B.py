@@ -15,6 +15,11 @@ class InterfaceBot(ctk.CTk):
         self.geometry('500x620')
         self.resizable(False, False)
 
+        #Controle se o bot tá ativo
+
+        self.bot_rodando = False
+        self.instancia_bot = None #Referencia do bot PERGUNTA SOBRE
+
         # caminho pasta img
         diretorio_atual = os.path.dirname(os.path.abspath(__file__))
         self.pasta_imagens = os.path.join(diretorio_atual, 'moedas_img')
@@ -96,7 +101,7 @@ class InterfaceBot(ctk.CTk):
         )
         self.lbl_sky_gastas.pack(pady=2, anchor="n")
 
-        # --- BOTÃO INICIAR ---
+        # --- BOTÃO INICIAR/ PAUSAR ---
         self.btn_iniciar = ctk.CTkButton(self, text="LIGAR BOT", fg_color="green", hover_color="darkgreen",
                                          command=self.coletar_e_iniciar)
         self.btn_iniciar.pack(pady=25, fill="x", padx=60)
@@ -152,14 +157,19 @@ class InterfaceBot(ctk.CTk):
             # O .after(0, ...) força a interface a atualizar o texto imediatamente sem travar
             self.after(0, lambda: self.labels_contadores[img_nome].configure(text=f"Comprados: {novo_total}"))
 
+    def alternar_estado_bot(self):
+        """"Alternar entre ligar e pausar"""
+        if not self.bot_rodando:
+            self.coletar_e_iniciar()
+        else:
+            self.parar_bot()
+
     def coletar_e_iniciar(self):
-        # 1. Monta a lista baseado no que o usuário marcou
         lista_final = []
         if self.check_moeda.get(): lista_final.append('amizad_moeda.png')
         if self.check_mist.get(): lista_final.append('mist_loja.png')
         if self.check_book.get(): lista_final.append('book_loja.png')
 
-        # 2. Descobre o multiplicador de velocidade
         vel = self.menu_velocidade.get()
         if "Rápido" in vel:
             multiplicador = 0.7
@@ -168,22 +178,49 @@ class InterfaceBot(ctk.CTk):
         else:
             multiplicador = 1.0
 
-        # 3. Coleta o limite de Skystones do campo de texto
         valor_digitado = self.input_sky.get().strip()
         limite_sky = int(valor_digitado) if valor_digitado.isdigit() else 99999
 
-        # Desativa o botão temporariamente
-        self.btn_iniciar.configure(state="disabled", text="BOT RODANDO (ESC PARA PARAR)")
+        # Atualiza estado e visual do botão
+        self.bot_rodando = True
+        self.btn_iniciar.configure(text="PAUSAR BOT (ESC)", fg_color="red", hover_color="darkred")
 
-        # 4. Importa o Bot dinamicamente e inicia em segundo plano (Thread)
         bot_modulo = importlib.import_module("bot_taverna")
+        self.instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador, self, limite_sky)
 
-        # Enviamos a lista, o multiplicador, a referência da janela (self) e o limite de Skystones
-        instancia_bot = bot_modulo.BotTaverna(lista_final, multiplicador, self, limite_sky)
-
-        thread = threading.Thread(target=instancia_bot.iniciar, daemon=True)
+        thread = threading.Thread(target=self.instancia_bot.iniciar, daemon=True)
         thread.start()
 
+        # Inicia o monitoramento seguro da tecla ESC pela própria interface
+        self.verificar_tecla_esc()
+
+    def verificar_tecla_esc(self):
+        """Monitora a tecla ESC de forma 100% integrada ao Tkinter sem travar threads."""
+        import keyboard
+        if self.bot_rodando:
+            if keyboard.is_pressed('esc'):
+                print("\n[TECLADO] ESC detectado pela interface!")
+                self.parar_bot("Bot pausado via teclado (ESC)")
+            else:
+                # Checa a cada 100ms se o ESC foi pressionado
+                self.after(100, self.verificar_tecla_esc)
+
+    def parar_bot(self, mensagem="Bot pausado"):
+        """Interrompe a flag e restaura totalmente o botão da interface."""
+        self.bot_rodando = False
+
+        if self.instancia_bot:
+            self.instancia_bot.rodando = False  # Para o loop do bot
+
+        # Força o botão a voltar ao estado ativo normal na cor verde
+        self.btn_iniciar.configure(
+            text="LIGAR BOT",
+            fg_color="green",
+            hover_color="darkgreen",
+            state="normal",
+            command=self.alternar_estado_bot
+        )
+        print(f"[STATUS] {mensagem}")
 
 # ==== PONTO DE ENTRADA OFICIAL DO PROGRAMA ====
 if __name__ == "__main__":
