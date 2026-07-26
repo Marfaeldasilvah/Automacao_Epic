@@ -29,14 +29,6 @@ class BotTaverna:
    return False
   return True
 
- def abrir_loja(self):
-  """Ação inicial que roda apenas uma vez para abrir a loja."""
-  print("Abrindo a loja...")
-  pa.click(x=84, y=474)
-  time.sleep(0.5 * self.multi_tempo)
-  pa.click(x=84, y=474)
-  time.sleep(1 * self.multi_tempo)
-
  def scrollar_loja(self):
   """Realiza o movimento de clique, segura e arrasta para scrollar a tela."""
   pa.moveTo(1171, 758)
@@ -162,7 +154,6 @@ class BotTaverna:
       pass
 
   time.sleep(3)
-  self.abrir_loja()
 
   while self.rodando:
    try:
